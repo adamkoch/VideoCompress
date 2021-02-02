@@ -126,7 +126,8 @@ extension Compress on IVideoCompress {
     int duration,
     bool includeAudio,
     int frameRate = 30,
-    int maxSize = -1,
+    int maxSizeMajor = -1,
+    int maxSizeMinor = -1,
   }) async {
     assert(path != null);
     if (isCompressing) {
@@ -149,7 +150,8 @@ extension Compress on IVideoCompress {
       'duration': duration,
       'includeAudio': includeAudio,
       'frameRate': frameRate,
-      'maxSize': maxSize,
+      'maxSizeMajor': maxSizeMajor,
+      'maxSizeMinor': maxSizeMinor,
     });
 
     // ignore: invalid_use_of_protected_member

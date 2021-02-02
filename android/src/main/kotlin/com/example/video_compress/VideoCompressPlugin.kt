@@ -84,7 +84,8 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                 val duration = call.argument<Int>("duration")
                 val includeAudio = call.argument<Boolean>("includeAudio") ?: true
                 val frameRate = if (call.argument<Int>("frameRate")==null) 30 else call.argument<Int>("frameRate")
-                val maxSize = call.argument<Int>("maxSize")!!
+                val maxSizeMajor = call.argument<Int>("maxSizeMajor")!!
+                val maxSizeMinor = call.argument<Int>("maxSizeMinor")!!
 
                 val tempDir: String = context.getExternalFilesDir("video_compress")!!.absolutePath
                 val out = SimpleDateFormat("yyyy-MM-dd hh-mm-ss").format(Date())
@@ -93,8 +94,10 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                 var videoTrackStrategy: TrackStrategy = DefaultVideoStrategy.atMost(340).build();
                 val audioTrackStrategy: TrackStrategy
 
-                if (maxSize != -1) {
-                    videoTrackStrategy = DefaultVideoStrategy.atMost(maxSize, maxSize).build()
+                if (maxSizeMajor != -1 && maxSizeMinor != -1) {
+                    videoTrackStrategy = DefaultVideoStrategy.atMost(maxSizeMinor, maxSizeMajor).build()
+                } else if (maxSizeMinor != -1) {
+                    videoTrackStrategy = DefaultVideoStrategy.atMost(maxSizeMinor).build()
                 } else {
                     when (quality) {
                         0 -> {
