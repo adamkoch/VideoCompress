@@ -84,6 +84,7 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                 val duration = call.argument<Int>("duration")
                 val includeAudio = call.argument<Boolean>("includeAudio") ?: true
                 val frameRate = if (call.argument<Int>("frameRate")==null) 30 else call.argument<Int>("frameRate")
+                val maxSize = call.argument<Int>("maxSize")
 
                 val tempDir: String = context.getExternalFilesDir("video_compress")!!.absolutePath
                 val out = SimpleDateFormat("yyyy-MM-dd hh-mm-ss").format(Date())
@@ -92,26 +93,29 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                 var videoTrackStrategy: TrackStrategy = DefaultVideoStrategy.atMost(340).build();
                 val audioTrackStrategy: TrackStrategy
 
-                when (quality) {
+                if (maxSize != -1) {
+                    videoTrackStrategy = DefaultVideoStrategy.atMost(maxSize, maxSize).build()
+                } else {
+                    when (quality) {
+                        0 -> {
+                          videoTrackStrategy = DefaultVideoStrategy.atMost(720).build()
+                        }
 
-                    0 -> {
-                      videoTrackStrategy = DefaultVideoStrategy.atMost(720).build()
-                    }
+                        1 -> {
+                            videoTrackStrategy = DefaultVideoStrategy.atMost(360).build()
+                        }
+                        2 -> {
+                            videoTrackStrategy = DefaultVideoStrategy.atMost(640).build()
+                        }
+                        3 -> {
 
-                    1 -> {
-                        videoTrackStrategy = DefaultVideoStrategy.atMost(360).build()
-                    }
-                    2 -> {
-                        videoTrackStrategy = DefaultVideoStrategy.atMost(640).build()
-                    }
-                    3 -> {
-
-                        assert(value = frameRate != null)
-                        videoTrackStrategy = DefaultVideoStrategy.Builder()
-                                .keyFrameInterval(3f)
-                                .bitRate(1280 * 720 * 4.toLong())
-                                .frameRate(frameRate!!) // will be capped to the input frameRate
-                                .build()
+                            assert(value = frameRate != null)
+                            videoTrackStrategy = DefaultVideoStrategy.Builder()
+                                    .keyFrameInterval(3f)
+                                    .bitRate(1280 * 720 * 4.toLong())
+                                    .frameRate(frameRate!!) // will be capped to the input frameRate
+                                    .build()
+                        }
                     }
                 }
 
