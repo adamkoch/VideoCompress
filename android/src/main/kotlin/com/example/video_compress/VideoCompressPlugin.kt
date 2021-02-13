@@ -8,13 +8,12 @@ import com.otaliastudios.transcoder.TranscoderListener
 import com.otaliastudios.transcoder.source.TrimDataSource
 import com.otaliastudios.transcoder.source.UriDataSource
 import com.otaliastudios.transcoder.strategy.DefaultAudioStrategy
-import com.otaliastudios.transcoder.strategy.DefaultVideoStrategy
 import com.otaliastudios.transcoder.strategy.RemoveTrackStrategy
 import com.otaliastudios.transcoder.strategy.TrackStrategy
-import com.otaliastudios.transcoder.strategy.size.*
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.BinaryMessenger
 import com.otaliastudios.transcoder.internal.Logger
+import com.otaliastudios.transcoder.strategy.DefaultVideoStrategy
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
@@ -83,9 +82,10 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                 val startTime = call.argument<Int>("startTime")
                 val duration = call.argument<Int>("duration")
                 val includeAudio = call.argument<Boolean>("includeAudio") ?: true
-                val frameRate = if (call.argument<Int>("frameRate")==null) 30 else call.argument<Int>("frameRate")
+                val frameRate = if (call.argument<Int>("frameRate") == null) 30 else call.argument<Int>("frameRate")
                 val maxSizeMajor = call.argument<Int>("maxSizeMajor")!!
                 val maxSizeMinor = call.argument<Int>("maxSizeMinor")!!
+                val bitRateMultiplier = call.argument<Double>("bitRateMultiplier") ?: 2.0
 
                 val tempDir: String = context.getExternalFilesDir("video_compress")!!.absolutePath
                 val out = SimpleDateFormat("yyyy-MM-dd hh-mm-ss").format(Date())
@@ -97,11 +97,16 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                 if (maxSizeMajor != -1 && maxSizeMinor != -1) {
                     videoTrackStrategy = DefaultVideoStrategy.atMost(maxSizeMinor, maxSizeMajor).build()
                 } else if (maxSizeMinor != -1) {
-                    videoTrackStrategy = DefaultVideoStrategy.atMost(maxSizeMinor).build()
+                    videoTrackStrategy = CustomTrackStrategy.atMost(maxSizeMinor)
+                            // Calculate appropriate bitRate -
+                            // https://stackoverflow.com/questions/5024114/suggested-compression-ratio-with-h-264/5220554#5220554
+                            .bitRateCallback { width, height, frameRate ->
+                                (width * height * frameRate * 0.07 * bitRateMultiplier).toInt() }
+                            .build()
                 } else {
                     when (quality) {
                         0 -> {
-                          videoTrackStrategy = DefaultVideoStrategy.atMost(720).build()
+                            videoTrackStrategy = DefaultVideoStrategy.atMost(720).build()
                         }
 
                         1 -> {
@@ -127,17 +132,18 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                     val channels = DefaultAudioStrategy.CHANNELS_AS_INPUT
 
                     DefaultAudioStrategy.builder()
-                        .channels(channels)
-                        .sampleRate(sampleRate)
-                        .build()
+                            .channels(channels)
+                            .sampleRate(sampleRate)
+                            .build()
                 } else {
                     RemoveTrackStrategy()
                 }
 
-                val dataSource = if (startTime != null || duration != null){
+                val dataSource = if (startTime != null || duration != null) {
                     val source = UriDataSource(context, Uri.parse(path))
-                    TrimDataSource(source, (1000 * 1000 * (startTime ?: 0)).toLong(), (1000 * 1000 * (duration ?: 0)).toLong())
-                }else{
+                    TrimDataSource(source, (1000 * 1000 * (startTime
+                            ?: 0)).toLong(), (1000 * 1000 * (duration ?: 0)).toLong())
+                } else {
                     UriDataSource(context, Uri.parse(path))
                 }
 
@@ -150,6 +156,7 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                             override fun onTranscodeProgress(progress: Double) {
                                 channel.invokeMethod("updateProgress", progress * 100.00)
                             }
+
                             override fun onTranscodeCompleted(successCode: Int) {
                                 channel.invokeMethod("updateProgress", 100.00)
                                 val json = Utility(channelName).getMediaInfoJson(context, destPath)

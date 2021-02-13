@@ -1,5 +1,6 @@
 import Flutter
 import AVFoundation
+import NextLevelSessionExporter
 
 public class SwiftVideoCompressPlugin: NSObject, FlutterPlugin {
     private let channelName = "video_compress"
@@ -42,8 +43,10 @@ public class SwiftVideoCompressPlugin: NSObject, FlutterPlugin {
             let duration = args!["duration"] as? Double
             let includeAudio = args!["includeAudio"] as? Bool
             let frameRate = args!["frameRate"] as? Int
+            let maxSizeMinor = args!["maxSizeMinor"] as? Int
+            let bitRateMultiplier = args!["bitRateMultiplier"] as? Double
             compressVideo(path, quality, deleteOrigin, startTime, duration, includeAudio,
-                          frameRate, result)
+                          frameRate, maxSizeMinor, bitRateMultiplier, result)
         case "cancelCompression":
             cancelCompression(result)
         case "deleteAllCache":
@@ -133,10 +136,9 @@ public class SwiftVideoCompressPlugin: NSObject, FlutterPlugin {
     }
     
     
-    @objc private func updateProgress(timer:Timer) {
-        let asset = timer.userInfo as! AVAssetExportSession
+    private func updateProgress(progress: Float) {
         if(!stopCommand) {
-            channel.invokeMethod("updateProgress", arguments: "\(String(describing: asset.progress * 100))")
+            channel.invokeMethod("updateProgress", arguments: progress * 100)
         }
     }
     
@@ -167,8 +169,8 @@ public class SwiftVideoCompressPlugin: NSObject, FlutterPlugin {
     }
     
     private func compressVideo(_ path: String,_ quality: NSNumber,_ deleteOrigin: Bool,_ startTime: Double?,
-                               _ duration: Double?,_ includeAudio: Bool?,_ frameRate: Int?,
-                               _ result: @escaping FlutterResult) {
+                               _ duration: Double?,_ includeAudio: Bool?,_ frameRate: Int?, _ maxSizeMinor: Int?,
+                               _ bitRateMultiplier: Double?, _ result: @escaping FlutterResult) {
         let sourceVideoUrl = Utility.getPathUrl(path)
         let sourceVideoType = "mp4"
         
@@ -192,62 +194,195 @@ public class SwiftVideoCompressPlugin: NSObject, FlutterPlugin {
         let isIncludeAudio = includeAudio != nil ? includeAudio! : true
         
         let session = getComposition(isIncludeAudio, timeRange, sourceVideoTrack!)
+
+        // Get the orientation of the video track
+        let videoOrientation = self.videoOrientation(videoTrack: sourceVideoTrack)
+        let isLandscape = videoOrientation.orientation.isLandscape
+
+
+        // Get the height/width of the track, swapping if needed due to orientation of video track
+        let originalHeight = (isLandscape ? sourceVideoTrack?.naturalSize.height : sourceVideoTrack?.naturalSize.width) ?? 480
+        let originalWidth = (isLandscape ? sourceVideoTrack?.naturalSize.width : sourceVideoTrack?.naturalSize.height) ?? 480
         
-        let exporter = AVAssetExportSession(asset: session, presetName: getExportPreset(quality))!
+        // Calculate new height/width. Setting smallest side to maxSizeMinor and keeping aspect ratio
+        // for the other side
+        let resizedMinor = CGFloat(maxSizeMinor ?? 480)
+        var newHeight = Int(originalHeight.rounded())
+        var newWidth = Int(originalWidth.rounded())
+//        print("original \(originalWidth) x \(originalHeight)")
+        if (originalHeight > resizedMinor && originalWidth > resizedMinor) {
+            if (originalHeight > originalWidth) {
+                newWidth = Int(resizedMinor)-1
+                newHeight = Int((originalHeight * (resizedMinor / originalWidth)).rounded())
+            } else {
+                newHeight = Int(resizedMinor)
+                newWidth = Int((originalWidth * (resizedMinor / originalHeight)).rounded())
+            }
+        }
+//        print("new \(newWidth) x \(newHeight)")
+//        let exporter = AVAssetExportSession(asset: session, presetName: getExportPreset(quality))!
+        let exporter = NextLevelSessionExporter(withAsset: session)
+        
+        // Calculate input frame rate
+        let videoComposition = AVMutableVideoComposition(propertiesOf: sourceVideoAsset)
+        var sourceFrameRate = Double(videoComposition.frameDuration.timescale) / Double(videoComposition.frameDuration.value)
+        if (sourceFrameRate < 24) {
+            sourceFrameRate = 24
+        }
+        if (sourceFrameRate > 120) {
+            sourceFrameRate = 120
+        }
+        
+//        print("frameRate = \(sourceFrameRate)")
+        
+        // Calculate appropriate bitRate -
+        // https://stackoverflow.com/questions/5024114/suggested-compression-ratio-with-h-264/5220554#5220554
+        let bitRate = Double(newHeight * newWidth) * sourceFrameRate * (bitRateMultiplier ?? 2.0) * 0.07
+//        print("bitRate = \(bitRate)")
+        let compressionDict: [String: Any] = [
+            AVVideoAverageBitRateKey: NSNumber(integerLiteral: Int(bitRate.rounded())),
+            AVVideoProfileLevelKey: AVVideoProfileLevelH264MainAutoLevel as String,
+        ]
+        
+        // For whatever reason, the encoder crashes when frameRate is set. It's probably better
+        // to leave as the default which should be the input frame rate anyway.
+//        if frameRate != nil {
+//            let videoComposition = AVMutableVideoComposition(propertiesOf: sourceVideoAsset)
+//
+//            print("Framerate = \(videoComposition.frameDuration)")
+//            videoComposition.frameDuration = CMTimeMake(value: 1, timescale: Int32(frameRate!))
+//            exporter.videoComposition = videoComposition
+//        }
         
         exporter.outputURL = compressionUrl
         exporter.outputFileType = AVFileType.mp4
-        exporter.shouldOptimizeForNetworkUse = true
+        exporter.videoOutputConfiguration = [
+            AVVideoCodecKey: AVVideoCodecH264,
+            AVVideoWidthKey: NSNumber(integerLiteral: newWidth),
+            AVVideoHeightKey: NSNumber(integerLiteral: newHeight),
+            AVVideoCompressionPropertiesKey: compressionDict
+//            AVVideoScalingModeKey: AVVideoScalingModeResizeAspect
+        ]
+        exporter.audioOutputConfiguration = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVEncoderBitRateKey: NSNumber(integerLiteral: 128000),
+            AVNumberOfChannelsKey: NSNumber(integerLiteral: 2),
+            AVSampleRateKey: NSNumber(value: Float(44100))
+        ]
         
-        if frameRate != nil {
-            let videoComposition = AVMutableVideoComposition(propertiesOf: sourceVideoAsset)
-            videoComposition.frameDuration = CMTimeMake(value: 1, timescale: Int32(frameRate!))
-            exporter.videoComposition = videoComposition
-        }
-        
+        exporter.optimizeForNetworkUse = true
+                
         if !isIncludeAudio {
             exporter.timeRange = timeRange
         }
         
         Utility.deleteFile(compressionUrl.absoluteString)
         
-        let timer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(self.updateProgress),
-                                         userInfo: exporter, repeats: true)
-        
-        exporter.exportAsynchronously(completionHandler: {
-            if(self.stopCommand) {
-                timer.invalidate()
-                self.stopCommand = false
-                var json = self.getMediaInfoJson(path)
-                json["isCancel"] = true
-                let jsonString = Utility.keyValueToJson(json)
-                return result(jsonString)
-            }
-            if deleteOrigin {
-                timer.invalidate()
-                let fileManager = FileManager.default
-                do {
-                    if fileManager.fileExists(atPath: path) {
-                        try fileManager.removeItem(atPath: path)
+        exporter.export(
+            progressHandler: { (progress) in
+                self.updateProgress(progress: progress)
+//                print(progress)
+            },
+            completionHandler: {
+                r in
+                    switch r {
+                        
+                    case .success(let status):
+                        switch status {
+                        case .completed:
+                            print("NextLevelSessionExporter, export completed, \(exporter.outputURL?.description ?? "")")
+                            if (self.stopCommand) {
+                                self.stopCommand = false
+                                var json = self.getMediaInfoJson(path)
+                                json["isCancel"] = true
+                                let jsonString = Utility.keyValueToJson(json)
+                                return result(jsonString)
+                            }
+                            if deleteOrigin {
+                                let fileManager = FileManager.default
+                                do {
+                                    if fileManager.fileExists(atPath: path) {
+                                        try fileManager.removeItem(atPath: path)
+                                    }
+                                    self.exporter = nil
+                                    self.stopCommand = false
+                                }
+                                catch let error as NSError {
+                                    print(error)
+                                }
+                            }
+                            var json = self.getMediaInfoJson(compressionUrl.absoluteString)
+                            json["isCancel"] = false
+                            let jsonString = Utility.keyValueToJson(json)
+                            result(jsonString)
+
+                            break
+                        default:
+                            print("NextLevelSessionExporter, did not complete")
+                            break
+                        }
+                        break
+                    case .failure(let error):
+                        print("NextLevelSessionExporter, failed to export \(error)")
+                        break
                     }
-                    self.exporter = nil
-                    self.stopCommand = false
-                }
-                catch let error as NSError {
-                    print(error)
-                }
             }
-            var json = self.getMediaInfoJson(compressionUrl.absoluteString)
-            json["isCancel"] = false
-            let jsonString = Utility.keyValueToJson(json)
-            result(jsonString)
-        })
+        )
     }
     
     private func cancelCompression(_ result: FlutterResult) {
         exporter?.cancelExport()
         stopCommand = true
         result("")
+    }
+    
+    // From: https://gist.github.com/mooshee/6b9e35c53047373568f5
+    func videoOrientation(videoTrack: AVAssetTrack?) -> (orientation: UIInterfaceOrientation, device: AVCaptureDevice.Position) {
+        var orientation: UIInterfaceOrientation = .unknown
+        var device: AVCaptureDevice.Position = .unspecified
+        if (videoTrack == nil) {
+            return (orientation, device)
+        }
+        
+        let t = videoTrack!.preferredTransform
+        
+        if (t.a == 0 && t.b == 1.0 && t.d == 0) {
+            orientation = .portrait
+            
+            if t.c == 1.0 {
+                device = .front
+            } else if t.c == -1.0 {
+                device = .back
+            }
+        }
+        else if (t.a == 0 && t.b == -1.0 && t.d == 0) {
+            orientation = .portraitUpsideDown
+            
+            if t.c == -1.0 {
+                device = .front
+            } else if t.c == 1.0 {
+                device = .back
+            }
+        }
+        else if (t.a == 1.0 && t.b == 0 && t.c == 0) {
+            orientation = .landscapeRight
+            
+            if t.d == -1.0 {
+                device = .front
+            } else if t.d == 1.0 {
+                device = .back
+            }
+        }
+        else if (t.a == -1.0 && t.b == 0 && t.c == 0) {
+            orientation = .landscapeLeft
+            
+            if t.d == 1.0 {
+                device = .front
+            } else if t.d == -1.0 {
+                device = .back
+            }
+        }
+        return (orientation, device)
     }
     
 }

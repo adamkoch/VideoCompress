@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import '../progress_callback/compress_mixin.dart';
-import '../video_compress/video_quality.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../media/media_info.dart';
+import '../progress_callback/compress_mixin.dart';
+import '../video_compress/video_quality.dart';
 
 abstract class IVideoCompress extends CompressMixin {}
 
@@ -128,6 +130,7 @@ extension Compress on IVideoCompress {
     int frameRate = 30,
     int maxSizeMajor = -1,
     int maxSizeMinor = -1,
+    double bitRateMultiplier = 2.0,
   }) async {
     assert(path != null);
     if (isCompressing) {
@@ -152,6 +155,7 @@ extension Compress on IVideoCompress {
       'frameRate': frameRate,
       'maxSizeMajor': maxSizeMajor,
       'maxSizeMinor': maxSizeMinor,
+      'bitRateMultiplier': bitRateMultiplier,
     });
 
     // ignore: invalid_use_of_protected_member

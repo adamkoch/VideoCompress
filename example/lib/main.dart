@@ -67,8 +67,10 @@ class _MyHomePageState extends State<MyHomePage> {
           final info = await VideoCompress.compressVideo(
             file.path,
             quality: VideoQuality.MediumQuality,
+            maxSizeMinor: 400,
             deleteOrigin: false,
-            includeAudio: true,
+            includeAudio: false,
+            bitRateMultiplier: 1.0,
           );
           if (info != null) {
             setState(() {
