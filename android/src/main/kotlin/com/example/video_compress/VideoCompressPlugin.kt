@@ -12,7 +12,7 @@ import com.otaliastudios.transcoder.strategy.RemoveTrackStrategy
 import com.otaliastudios.transcoder.strategy.TrackStrategy
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.BinaryMessenger
-import com.otaliastudios.transcoder.internal.Logger
+import com.otaliastudios.transcoder.internal.utils.Logger
 import com.otaliastudios.transcoder.strategy.DefaultVideoStrategy
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel

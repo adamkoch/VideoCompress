@@ -6,19 +6,19 @@ import android.os.Build;
 
 import androidx.annotation.NonNull;
 
-import com.otaliastudios.transcoder.engine.TrackStatus;
-import com.otaliastudios.transcoder.internal.BitRates;
-import com.otaliastudios.transcoder.internal.Logger;
-import com.otaliastudios.transcoder.internal.MediaFormatConstants;
+import com.otaliastudios.transcoder.common.ExactSize;
+import com.otaliastudios.transcoder.common.Size;
+import com.otaliastudios.transcoder.common.TrackStatus;
+import com.otaliastudios.transcoder.internal.media.MediaFormatConstants;
+import com.otaliastudios.transcoder.internal.utils.BitRates;
+import com.otaliastudios.transcoder.internal.utils.Logger;
+import com.otaliastudios.transcoder.resize.AspectRatioResizer;
+import com.otaliastudios.transcoder.resize.AtMostResizer;
+import com.otaliastudios.transcoder.resize.ExactResizer;
+import com.otaliastudios.transcoder.resize.FractionResizer;
+import com.otaliastudios.transcoder.resize.MultiResizer;
+import com.otaliastudios.transcoder.resize.Resizer;
 import com.otaliastudios.transcoder.strategy.TrackStrategy;
-import com.otaliastudios.transcoder.strategy.size.AspectRatioResizer;
-import com.otaliastudios.transcoder.strategy.size.AtMostResizer;
-import com.otaliastudios.transcoder.strategy.size.ExactResizer;
-import com.otaliastudios.transcoder.strategy.size.ExactSize;
-import com.otaliastudios.transcoder.strategy.size.FractionResizer;
-import com.otaliastudios.transcoder.strategy.size.MultiResizer;
-import com.otaliastudios.transcoder.strategy.size.Resizer;
-import com.otaliastudios.transcoder.strategy.size.Size;
 
 import java.util.List;
 
