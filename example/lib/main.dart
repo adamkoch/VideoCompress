@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:file_selector/file_selector.dart';
 import 'dart:io';
+import 'package:video_compress_example/video_thumbnail.dart';
 
 void main() {
   runApp(MyApp());
@@ -22,22 +23,50 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  MyHomePage({Key? key, this.title}) : super(key: key);
 
-  final String title;
+  final String? title;
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  String _counter = "video";
+  String _counter = 'video';
+
+  Future<void> _compressVideo() async {
+    var file;
+    if (Platform.isMacOS) {
+      final typeGroup = XTypeGroup(label: 'videos', extensions: ['mov', 'mp4']);
+      file = await openFile(acceptedTypeGroups: [typeGroup]);
+    } else {
+      final picker = ImagePicker();
+      var pickedFile = await picker.pickVideo(source: ImageSource.gallery);
+      file = File(pickedFile!.path);
+    }
+    if (file == null) {
+      return;
+    }
+    await VideoCompress.setLogLevel(0);
+    final info = await VideoCompress.compressVideo(
+      file.path,
+      quality: VideoQuality.MediumQuality,
+      deleteOrigin: false,
+      includeAudio: true,
+      maxSizeMinor: 400,
+      bitRateMultiplier: 1.0,
+    );
+    print(info!.path);
+    setState(() {
+      _counter = info.path!;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(widget.title!),
       ),
       body: Center(
         child: Column(
@@ -57,40 +86,21 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 onTap: () {
                   VideoCompress.cancelCompression();
-                })
+                }),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => VideoThumbnail()),
+                );
+              },
+              child: Text('Test thumbnail'),
+            ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          var file;
-          if (Platform.isMacOS) {
-            final typeGroup = XTypeGroup(label: 'videos', extensions: ['mov', 'mp4']);
-            file = await openFile(acceptedTypeGroups: [typeGroup]);
-          } else {
-            final picker = ImagePicker();
-            PickedFile pickedFile = await picker.getVideo(source: ImageSource.gallery);
-            file = File(pickedFile.path);
-          }
-          if (file == null) {
-            return;
-          }
-          await VideoCompress.setLogLevel(0);
-          final info = await VideoCompress.compressVideo(
-            file.path,
-            quality: VideoQuality.MediumQuality,
-            maxSizeMinor: 400,
-            deleteOrigin: false,
-            includeAudio: false,
-            bitRateMultiplier: 1.0,
-          );
-          print(info.path);
-          if (info != null) {
-            setState(() {
-              _counter = info.path;
-            });
-          }
-        },
+        onPressed: () async => _compressVideo(),
         tooltip: 'Increment',
         child: Icon(Icons.add),
       ),

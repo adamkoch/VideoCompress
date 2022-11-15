@@ -2,13 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-
+import 'package:video_compress/src/progress_callback/compress_mixin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../media/media_info.dart';
-import '../progress_callback/compress_mixin.dart';
-import '../video_compress/video_quality.dart';
+import 'package:video_compress/video_compress.dart';
 
 abstract class IVideoCompress extends CompressMixin {}
 
@@ -18,6 +15,7 @@ class _VideoCompressImpl extends IVideoCompress {
   }
 
   static _VideoCompressImpl? _instance;
+
   static _VideoCompressImpl get instance {
     return _instance ??= _VideoCompressImpl._();
   }
@@ -51,7 +49,7 @@ extension Compress on IVideoCompress {
 
   /// getByteThumbnail return [Future<Uint8List>],
   /// quality can be controlled by [quality] from 1 to 100,
-  /// select the position unit in the video by [position] is seconds
+  /// select the position unit in the video by [position] is milliseconds
   Future<Uint8List?> getByteThumbnail(
     String path, {
     int quality = 100,
@@ -68,7 +66,7 @@ extension Compress on IVideoCompress {
 
   /// getFileThumbnail return [Future<File>]
   /// quality can be controlled by [quality] from 1 to 100,
-  /// select the position unit in the video by [position] is seconds
+  /// select the position unit in the video by [position] is milliseconds
   Future<File> getFileThumbnail(
     String path, {
     int quality = 100,
@@ -76,13 +74,15 @@ extension Compress on IVideoCompress {
   }) async {
     assert(quality > 1 || quality < 100);
 
+    // Not to set the result as strong-mode so that it would have exception to
+    // lead to the failure of compression
     final filePath = await (_invoke<String>('getFileThumbnail', {
       'path': path,
       'quality': quality,
       'position': position,
-    }) as FutureOr<String>);
+    }));
 
-    final file = File(filePath);
+    final file = File(Uri.decodeFull(filePath!));
 
     return file;
   }
@@ -97,8 +97,10 @@ extension Compress on IVideoCompress {
   /// debugPrint(info.toJson());
   /// ```
   Future<MediaInfo> getMediaInfo(String path) async {
-    final jsonStr = await (_invoke<String>('getMediaInfo', {'path': path}) as FutureOr<String>);
-    final jsonMap = json.decode(jsonStr);
+    // Not to set the result as strong-mode so that it would have exception to
+    // lead to the failure of compression
+    final jsonStr = await (_invoke<String>('getMediaInfo', {'path': path}));
+    final jsonMap = json.decode(jsonStr!);
     return MediaInfo.fromJson(jsonMap);
   }
 
@@ -139,6 +141,7 @@ extension Compress on IVideoCompress {
       debugPrint('''VideoCompress: You can try to subscribe to the 
       compressProgress\$ stream to know the compressing state.''');
     }
+
     // ignore: invalid_use_of_protected_member
     setProcessingStatus(true);
     final jsonStr = await _invoke<String>('compressVideo', {

@@ -1,3 +1,17 @@
+## 3.1.1
+- Fix issue on iOS with files containing whitespaces (@kaiquegazola)
+- Fix cancel compress on IOS (@posawatji)
+- Update Android compression library (@crtl)
+- Update flutter 3 (@pranavo72bex)
+- Fix multiple compression on android (@neelansh-creatorstack )
+- Fix multiple compression on iOS (zhuyangyang-lingoace)
+
+## 3.1.0
+- Bug fix on getMediaInfo (@trustmefelix)
+- Improve getFileThumbnail() (@FelixMoMo/@trustmefelix)
+- invalidate updateProgress timer after the completion of video export (@jinthislife)
+- Added Support for resolution presets (@yanivshaked)
+
 ## 3.0.0
 - Added MacOS support (thank's @efraespada)
 - Null-safety support (thank's @rlazom feat @leynier)

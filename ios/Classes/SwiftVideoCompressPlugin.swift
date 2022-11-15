@@ -150,6 +150,14 @@ public class SwiftVideoCompressPlugin: NSObject, FlutterPlugin {
             return AVAssetExportPresetMediumQuality
         case 3:
             return AVAssetExportPresetHighestQuality
+        case 4:
+            return AVAssetExportPreset640x480
+        case 5:
+            return AVAssetExportPreset960x540
+        case 6:
+            return AVAssetExportPreset1280x720
+        case 7:
+            return AVAssetExportPreset1920x1080
         default:
             return AVAssetExportPresetMediumQuality
         }
@@ -176,10 +184,11 @@ public class SwiftVideoCompressPlugin: NSObject, FlutterPlugin {
         
         let sourceVideoAsset = avController.getVideoAsset(sourceVideoUrl)
         let sourceVideoTrack = avController.getTrack(sourceVideoAsset)
-        
+
+        let uuid = NSUUID()
         let compressionUrl =
-            Utility.getPathUrl("\(Utility.basePath())/\(Utility.getFileName(path)).\(sourceVideoType)")
-        
+        Utility.getPathUrl("\(Utility.basePath())/\(Utility.getFileName(path))\(uuid.uuidString).\(sourceVideoType)")
+
         let timescale = sourceVideoAsset.duration.timescale
         let minStartTime = Double(startTime ?? 0)
         
@@ -331,8 +340,8 @@ public class SwiftVideoCompressPlugin: NSObject, FlutterPlugin {
     }
     
     private func cancelCompression(_ result: FlutterResult) {
-        exporter?.cancelExport()
         stopCommand = true
+        exporter?.cancelExport()
         result("")
     }
     
