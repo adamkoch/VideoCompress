@@ -100,8 +100,8 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                     videoTrackStrategy = CustomTrackStrategy.atMost(maxSizeMinor)
                             // Calculate appropriate bitRate -
                             // https://stackoverflow.com/questions/5024114/suggested-compression-ratio-with-h-264/5220554#5220554
-                            .bitRateCallback { width, height, frameRate ->
-                                (width * height * frameRate * 0.07 * bitRateMultiplier).toInt() }
+                            .bitRateCallback { width, height, frRate ->
+                                (width * height * frRate * 0.07 * bitRateMultiplier).toInt() }
                             .build()
                 } else {
                     when (quality) {
@@ -124,19 +124,19 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                                     .frameRate(frameRate!!) // will be capped to the input frameRate
                                     .build()
                         }
+                        4 -> {
+                            videoTrackStrategy = DefaultVideoStrategy.atMost(480, 640).build()
+                        }
+                        5 -> {
+                            videoTrackStrategy = DefaultVideoStrategy.atMost(540, 960).build()
+                        }
+                        6 -> {
+                            videoTrackStrategy = DefaultVideoStrategy.atMost(720, 1280).build()
+                        }
+                        7 -> {
+                            videoTrackStrategy = DefaultVideoStrategy.atMost(1080, 1920).build()
+                        }
                     }
-                    4 -> {
-                        videoTrackStrategy = DefaultVideoStrategy.atMost(480, 640).build()
-                    }
-                    5 -> {
-                        videoTrackStrategy = DefaultVideoStrategy.atMost(540, 960).build()
-                    }
-                    6 -> {
-                        videoTrackStrategy = DefaultVideoStrategy.atMost(720, 1280).build()
-                    }
-                    7 -> {
-                        videoTrackStrategy = DefaultVideoStrategy.atMost(1080, 1920).build()
-                    }                    
                 }
 
                 audioTrackStrategy = if (includeAudio) {
@@ -160,7 +160,7 @@ class VideoCompressPlugin : MethodCallHandler, FlutterPlugin {
                 }
 
 
-                transcodeFuture = Transcoder.into(destPath!!)
+                transcodeFuture = Transcoder.into(destPath)
                         .addDataSource(dataSource)
                         .setAudioTrackStrategy(audioTrackStrategy)
                         .setVideoTrackStrategy(videoTrackStrategy)
